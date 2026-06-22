@@ -26,10 +26,12 @@ def in_ref_domain(mid_u, mid_v, level, ref_domains):
             return True
     return False
 
-def draw_active_element_borders_2d(ax, geom, level_breaks, ref_domains):
-    """Draw only active-level cell borders (cells not covered by a finer level)."""
+def draw_active_element_borders_2d(ax, geom, level_breaks, ref_domains, min_level=0):
+    """Draw active-level cell borders for levels >= min_level."""
     n_lvls = geom.NumberOfLevels()
     for l, (ku, kv) in enumerate(level_breaks):
+        if l < min_level:
+            continue
         for su in unique_spans(ku):
             for sv in unique_spans(kv):
                 mid_u = 0.5 * (su[0] + su[1])
@@ -39,12 +41,13 @@ def draw_active_element_borders_2d(ax, geom, level_breaks, ref_domains):
                 if in_this and not in_next:
                     rect_u = [su[0], su[1], su[1], su[0], su[0]]
                     rect_v = [sv[0], sv[0], sv[1], sv[1], sv[0]]
-                    ax.plot(rect_u, rect_v, color='gray', lw=0.7, zorder=2)
-    # Outer domain boundary
-    ku0, kv0 = level_breaks[0]
-    outer_u = [ku0[0], ku0[-1], ku0[-1], ku0[0], ku0[0]]
-    outer_v = [kv0[0], kv0[0], kv0[-1], kv0[-1], kv0[0]]
-    ax.plot(outer_u, outer_v, color='gray', lw=0.7, zorder=3)
+                    ax.plot(rect_u, rect_v, color='black', lw=0.7, zorder=2)
+    if min_level == 0:
+        # Outer domain boundary (only when showing the full hierarchy)
+        ku0, kv0 = level_breaks[0]
+        outer_u = [ku0[0], ku0[-1], ku0[-1], ku0[0], ku0[0]]
+        outer_v = [kv0[0], kv0[0], kv0[-1], kv0[-1], kv0[0]]
+        ax.plot(outer_u, outer_v, color='black', lw=0.7, zorder=3)
 
 
 def main():
@@ -94,7 +97,7 @@ def main():
     u_lo, u_hi = float(knots_u[0]), float(knots_u[len(knots_u) - 1])
     v_lo, v_hi = float(knots_v[0]), float(knots_v[len(knots_v) - 1])
 
-    n_eval = 60
+    n_eval = 100
     u_vals = numpy.linspace(u_lo, u_hi - 1e-4, n_eval)
     v_vals = numpy.linspace(v_lo, v_hi - 1e-4, n_eval)
     U, V = numpy.meshgrid(u_vals, v_vals)   # both (n_eval, n_eval)
@@ -158,18 +161,51 @@ def main():
     cmap_lines = mpl_cm.get_cmap('rainbow')
     global_norm = mpl_colors.Normalize(vmin=0.0, vmax=1.0)
 
+    ref_domains = list(geom.RefinementDomains())
+
+    # Bounding box of all refinement domains — used as viewport for level-1+ figures
+    ref_u_lo = min(d.MinU for d in ref_domains)
+    ref_u_hi = max(d.MaxU for d in ref_domains)
+    ref_v_lo = min(d.MinV for d in ref_domains)
+    ref_v_hi = max(d.MaxV for d in ref_domains)
+    ref_margin = max(ref_u_hi - ref_u_lo, ref_v_hi - ref_v_lo) * 0.05
+
+    # Only visualize shape functions from level 1 and finer
+    fine_cp_indices = [j for j in range(num_active_cps) if cp_levels[j] >= 1]
+    num_fine_cps = len(fine_cp_indices)
+
+    def draw_single_cp(ax, Z_masked, supp_min_u, supp_max_u, supp_min_v, supp_max_v,
+                       lvl, local_idx, title_fontsize=7):
+        draw_active_element_borders_2d(ax, geom, level_breaks, ref_domains, min_level=1)
+        z_min = float(Z_masked.min())
+        z_max = float(Z_masked.max())
+        levels_local = numpy.linspace(z_min, z_max, 10)
+        ax.contour(U, V, Z_masked, levels=levels_local,
+                   cmap=cmap_lines, norm=global_norm, linewidths=1.5, zorder=2)
+        rect_u = [supp_min_u, supp_max_u, supp_max_u, supp_min_u, supp_min_u]
+        rect_v = [supp_min_v, supp_min_v, supp_max_v, supp_max_v, supp_min_v]
+        ax.plot(rect_u, rect_v, color='blue', lw=2.0, zorder=4)
+        ax.set_title(f'L{lvl}-N{local_idx}', fontsize=title_fontsize, pad=2)
+        for spine in ["top", "right", "bottom", "left"]:
+            ax.spines[spine].set_visible(False)
+        ax.set_xlim(ref_u_lo - ref_margin, ref_u_hi + ref_margin)
+        ax.set_ylim(ref_v_lo - ref_margin, ref_v_hi + ref_margin)
+        ax.set_aspect('equal')
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    single_dir = os.path.join(options.outdir, 'shape_function')
+    os.makedirs(single_dir, exist_ok=True)
+
     ncols = 6
-    nrows = (num_active_cps + ncols - 1) // ncols
+    nrows = (num_fine_cps + ncols - 1) // ncols
 
     fig, axes = plt.subplots(nrows, ncols, figsize=(2.2 * ncols + 0.6, 1.8 * nrows), squeeze=False)
     fig.subplots_adjust(right=0.88)
     level_counts = [0] * geom.NumberOfLevels()
 
-    ref_domains = list(geom.RefinementDomains())
-
-    for j in range(num_active_cps):
-        r, c = divmod(j, ncols)
-        ax = axes[r][c]
+    for plot_idx, j in enumerate(fine_cp_indices):
+        r, c = divmod(plot_idx, ncols)
         lvl = cp_levels[j]
         local_idx = level_counts[lvl]
         level_counts[lvl] += 1
@@ -180,33 +216,21 @@ def main():
         Z = N_np[:, j].reshape(n_eval, n_eval)
         Z_masked = numpy.ma.masked_where(mask, Z)
 
-        draw_active_element_borders_2d(ax, geom, level_breaks, ref_domains)
+        # Draw into the grid subplot
+        draw_single_cp(axes[r][c], Z_masked,
+                       supp_min_u, supp_max_u, supp_min_v, supp_max_v, lvl, local_idx)
 
-        # 10 levels spanning this function's actual value range
-        z_min = float(Z_masked.min())
-        z_max = float(Z_masked.max())
-        levels_local = numpy.linspace(z_min, z_max, 10)
-
-        # Contour lines colored by global [0,1] norm so all subplots share the same scale
-        ax.contour(U, V, Z_masked, levels=levels_local, cmap=cmap_lines, norm=global_norm, linewidths=1.0, zorder=2)
-
-        # Support rectangle -- bold blue (drawn on top of grid)
-        rect_u = [supp_min_u, supp_max_u, supp_max_u, supp_min_u, supp_min_u]
-        rect_v = [supp_min_v, supp_min_v, supp_max_v, supp_max_v, supp_min_v]
-        ax.plot(rect_u, rect_v, color='blue', lw=1.0, zorder=4)
-
-        ax.set_title(f'L{lvl}-N{local_idx}', fontsize=7, pad=2)
-        margin = (u_hi - u_lo) * 0.05
-        for spine in ["top", "right", "bottom", "left"]:
-            ax.spines[spine].set_visible(False)
-        ax.set_xlim(u_lo - margin, u_hi + margin)
-        ax.set_ylim(v_lo - margin, v_hi + margin)
-        ax.set_aspect('equal')
-        ax.set_xticks([])
-        ax.set_yticks([])
+        # Save individual figure
+        fig_s, ax_s = plt.subplots(figsize=(3.5, 3.5))
+        draw_single_cp(ax_s, Z_masked,
+                       supp_min_u, supp_max_u, supp_min_v, supp_max_v, lvl, local_idx,
+                       title_fontsize=10)
+        fn_single = os.path.join(single_dir, f'L{lvl}-N{local_idx}.png')
+        fig_s.savefig(fn_single, dpi=150, bbox_inches='tight')
+        plt.close(fig_s)
 
     # Hide unused subplots
-    for j in range(num_active_cps, nrows * ncols):
+    for j in range(num_fine_cps, nrows * ncols):
         r, c = divmod(j, ncols)
         axes[r][c].set_visible(False)
 
@@ -215,14 +239,16 @@ def main():
     plt.savefig(filename, dpi=150, bbox_inches='tight')
     print(f"Saved: {filename}")
 
-    ### Active knot spans + control points per level ###
+    ### Active knot spans + control points per level (level 1 and finer only) ###
     level_cp_colors = ['red', 'orange', 'green', 'purple', 'cyan', 'brown']
     fig2, ax2 = plt.subplots(figsize=(5.0, 5.0))
-    draw_active_element_borders_2d(ax2, geom, level_breaks, ref_domains)
+    draw_active_element_borders_2d(ax2, geom, level_breaks, ref_domains, min_level=1)
 
-    # Collect CP (u, v) per level from packed nodes
+    # Collect CP (u, v) per level from packed nodes, skip level 0
     cp_coords_by_level = [[] for _ in range(geom.NumberOfLevels())]
     for j in range(num_active_cps):
+        if cp_levels[j] == 0:
+            continue
         node = geom[j]
         cp_coords_by_level[cp_levels[j]].append((node.X, node.Y))
 
@@ -230,12 +256,11 @@ def main():
         if not coords:
             continue
         xs, ys = zip(*coords)
-        color = level_cp_colors[l % len(level_cp_colors)]
+        color = level_cp_colors[(l - 1) % len(level_cp_colors)]
         ax2.scatter(xs, ys, color=color, s=30, zorder=5, label=f'Level {l}')
 
-    margin = (u_hi - u_lo) * 0.05
-    ax2.set_xlim(u_lo - margin, u_hi + margin)
-    ax2.set_ylim(v_lo - margin, v_hi + margin)
+    ax2.set_xlim(ref_u_lo - ref_margin, ref_u_hi + ref_margin)
+    ax2.set_ylim(ref_v_lo - ref_margin, ref_v_hi + ref_margin)
     ax2.set_aspect('equal')
     ax2.set_xlabel('u')
     ax2.set_ylabel('v')

@@ -1,0 +1,63 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage[margin=2cm]{geometry}
+\usepackage{float}
+
+% Paths to figure directories
+\newcommand{\refdir}{/Users/fukudawataru/Documents/TUM/Class/SS_26/thesis/data/shape_function_reference}
+\newcommand{\mydir}{/Users/fukudawataru/GIT/public/MasterThesis_Kratos/fig/shape_function}
+
+\newlength{\figw}
+\setlength{\figw}{0.235\linewidth}
+
+% One subfigure cell; #3 = width factor (e.g. \linewidth or 1.1\linewidth)
+\newcommand{\cell}[3]{%
+  \begin{subfigure}[b]{\figw}
+    \includegraphics[width=#3]{#1}
+    % \caption*{\small #2}
+  \end{subfigure}%
+}
+
+% Row of 4: two ref/mine pairs for files #1 and #2
+\newcommand{\quadrow}[2]{%
+  \begin{figure}[H]
+    \centering
+    \cell{\refdir/#1}{Ref #1}{\linewidth}\hfill
+    \cell{\mydir/#1}{Mine #1}{1.1\linewidth}\hfill
+    \cell{\refdir/#2}{Ref #2}{\linewidth}\hfill
+    \cell{\mydir/#2}{Mine #2}{1.1\linewidth}
+  \end{figure}%
+}
+
+% Row of 2: ref at col 1, mine at col 4 (empty boxes hold cols 2 and 3)
+\newcommand{\pairrow}[1]{%
+  \begin{figure}[H]
+    \centering
+    \cell{\refdir/#1}{Ref #1}{\linewidth}\hfill
+    \cell{\mydir/#1}{Mine #1}{1.1\linewidth}\hfill
+    \makebox[\figw]{}\hfill
+    \makebox[\figw]{}
+  \end{figure}%
+}
+
+\begin{document}
+
+% ── Level 1 (9 files → 4 quad rows + 1 pair row) ────────────────────────────
+\section*{Level 1}
+\quadrow{L1-N0.png}{L1-N1.png}
+\quadrow{L1-N2.png}{L1-N3.png}
+\quadrow{L1-N4.png}{L1-N5.png}
+\quadrow{L1-N6.png}{L1-N7.png}
+\pairrow{L1-N8.png}
+
+% ── Level 2 (11 files → 5 quad rows + 1 pair row) ───────────────────────────
+\section*{Level 2}
+\quadrow{L2-N0.png}{L2-N1.png}
+\quadrow{L2-N2.png}{L2-N3.png}
+\quadrow{L2-N4.png}{L2-N5.png}
+\quadrow{L2-N6.png}{L2-N7.png}
+\quadrow{L2-N8.png}{L2-N9.png}
+\pairrow{L2-N10.png}
+
+\end{document}
