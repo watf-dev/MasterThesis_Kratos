@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/opt/homebrew/bin/python3
 # Created: Jun, 17, 2026 14:52:40 by Wataru Fukuda
 
 import KratosMultiphysics as KM
