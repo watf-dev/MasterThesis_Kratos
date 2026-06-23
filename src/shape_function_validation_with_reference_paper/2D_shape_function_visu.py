@@ -185,7 +185,7 @@ def main():
         rect_u = [supp_min_u, supp_max_u, supp_max_u, supp_min_u, supp_min_u]
         rect_v = [supp_min_v, supp_min_v, supp_max_v, supp_max_v, supp_min_v]
         ax.plot(rect_u, rect_v, color='blue', lw=2.0, zorder=4)
-        ax.set_title(f'L{lvl}-N{local_idx}', fontsize=title_fontsize, pad=2)
+        # ax.set_title(f'L{lvl}-N{local_idx}', fontsize=title_fontsize, pad=2)
         for spine in ["top", "right", "bottom", "left"]:
             ax.spines[spine].set_visible(False)
         ax.set_xlim(ref_u_lo - ref_margin, ref_u_hi + ref_margin)

@@ -15,7 +15,15 @@
 \newcommand{\cell}[3]{%
   \begin{subfigure}[b]{\figw}
     \includegraphics[width=#3]{#1}
-    % \caption*{\small #2}
+    \caption*{\scriptsize #2}
+  \end{subfigure}%
+}
+
+% Mine cell with crop: trim={left bottom right top}
+\newcommand{\cellmine}[3]{%
+  \begin{subfigure}[b]{\figw}
+    \includegraphics[width=#3, trim={12 12 12 12}, clip]{#1}
+    \caption*{\scriptsize #2}
   \end{subfigure}%
 }
 
@@ -24,9 +32,9 @@
   \begin{figure}[H]
     \centering
     \cell{\refdir/#1}{Ref #1}{\linewidth}\hfill
-    \cell{\mydir/#1}{Mine #1}{1.1\linewidth}\hfill
+    \cellmine{\mydir/#1}{Kratos #1}{1.03\linewidth}\hfill
     \cell{\refdir/#2}{Ref #2}{\linewidth}\hfill
-    \cell{\mydir/#2}{Mine #2}{1.1\linewidth}
+    \cellmine{\mydir/#2}{Kratos #2}{1.03\linewidth}
   \end{figure}%
 }
 
@@ -35,7 +43,7 @@
   \begin{figure}[H]
     \centering
     \cell{\refdir/#1}{Ref #1}{\linewidth}\hfill
-    \cell{\mydir/#1}{Mine #1}{1.1\linewidth}\hfill
+    \cellmine{\mydir/#1}{Kratos #1}{1.03\linewidth}\hfill
     \makebox[\figw]{}\hfill
     \makebox[\figw]{}
   \end{figure}%
