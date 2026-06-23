@@ -4,9 +4,9 @@ set -eu
 
 BASE=$(dirname "$0")
 
-$BASE/1D_shape_functions_generation.py
+$BASE/1D_shape_functions_generation.py --tex 1D_shape_functions.tex
 lualatex $BASE/1D_shape_functions.tex
 lualatex $BASE/1D_shape_functions.tex
-rm *.aux *.log
+rm -f *.aux *.log
 open 1D_shape_functions.pdf
 

@@ -22,8 +22,9 @@ def main():
 
 """
     )
-    parser.add_argument("--show", action="store_true", help="show the shape functions")
-    parser.add_argument("--outdir", default="ShapeFunctions", help="output dir")
+    parser.add_argument("--show",   action="store_true", help="show the shape functions")
+    parser.add_argument("--outdir", default="ShapeFunctions",        help="output dir for txt files")
+    parser.add_argument("--tex",    default="1D_shape_functions.tex", help="output tex file")
     options = parser.parse_args()
     import os
     import numpy
@@ -64,18 +65,137 @@ def main():
     knot_spans = geom.SpansLocalSpace(0)
 
     cp_levels = []
+    cp_flat_indices = []
     for l in range(geom.NumberOfLevels()):
-        cp_levels.extend([l] * geom.NumberOfActiveFunctions(l))
+        flags = geom.GetActiveFunctions(l)
+        for flat_idx in range(len(flags)):
+            if flags[flat_idx]:
+                cp_levels.append(l)
+                cp_flat_indices.append(flat_idx)
     level_counts = [0] * geom.NumberOfLevels()
+
+    # A level-l function is truncated if the midpoint of its support falls inside
+    # a refinement domain at a finer level. This covers both conditions:
+    #   1. The support overlaps Ω^{l+1} (truncation operator is applied).
+    #   2. Active children exist in that overlap (operator is non-trivial),
+    #      since the refinement domain is fully populated with active fine CPs.
+    ref_domains = list(geom.RefinementDomains())
+    finest_level = geom.NumberOfLevels() - 1
+    degree = geom.PolynomialDegree(0)
+
+    def is_truncated(lvl, flat_idx):
+        if lvl >= finest_level:
+            return False
+        knots = list(geom.Levels()[lvl].Knots)
+        supp_min = knots[flat_idx - 1] if flat_idx > 0 else knots[0]
+        supp_max = knots[min(flat_idx + degree, len(knots) - 1)]
+        midpoint = 0.5 * (supp_min + supp_max)
+        tol = 1e-10
+        for dom in ref_domains:
+            if dom.Level > lvl and dom.MinT + tol < midpoint < dom.MaxT - tol:
+                return True
+        return False
 
     os.makedirs(options.outdir, exist_ok=True)
     for i in range(n_active):
         lvl = cp_levels[i]
+        flat_idx = cp_flat_indices[i]
         local_idx = level_counts[lvl]
         level_counts[lvl] += 1
-        # if truncated: filename = f"L{lvl}_N{local_idx}_truncated.txt", else: filename = f"L{lvl}_N{local_idx}.txt"
-        filename = f"L{lvl}_N{local_idx}.txt"
-        numpy.savetxt(os.path.join(options.outdir,filename), numpy.stack([t_eval,N_numpy[:, i]],axis=-1))
+
+        N_col = N_numpy[:, i]
+        tag = "_truncated" if is_truncated(lvl, flat_idx) else ""
+        filename = f"L{lvl}_N{local_idx}{tag}.txt"
+
+        nonzero_mask = numpy.abs(N_col) > 1e-12
+        numpy.savetxt(
+            os.path.join(options.outdir, filename),
+            numpy.stack([t_eval[nonzero_mask], N_col[nonzero_mask]], axis=-1)
+        )
+
+    ### Generate tex file ###
+    # Color per (level, truncated): non-truncated / truncated pairs per level.
+    level_color_pairs = [
+        ('blue',         'cyan'),    # level 0
+        ('red',          'orange'),  # level 1
+        ('green!70!black', 'green'), # level 2
+        ('purple',       'violet'),  # level 3
+    ]
+
+    xmin = int(min(knots))
+    xmax = int(max(knots))
+    xtick_list = ','.join(str(v) for v in range(xmin, xmax + 1))
+
+    addplot_lines = []
+    level_counts_tex = [0] * geom.NumberOfLevels()
+    for i in range(n_active):
+        lvl = cp_levels[i]
+        flat_idx = cp_flat_indices[i]
+        local_idx = level_counts_tex[lvl]
+        level_counts_tex[lvl] += 1
+        truncated = is_truncated(lvl, flat_idx)
+        tag = "_truncated" if truncated else ""
+        fname = f"{options.outdir}/L{lvl}_N{local_idx}{tag}.txt"
+        pair = level_color_pairs[lvl % len(level_color_pairs)]
+        color = pair[1] if truncated else pair[0]
+        addplot_lines.append(
+            f'  \\addplot[color={color}] table [x index=0, y index=1] {{{fname}}};'
+        )
+
+    tex_content = r"""\documentclass[multi=minipage,border=0]{standalone}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{pgfplots,tikz}
+\usepackage{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[scaled]{helvet}
+\usepackage{pgffor}
+\renewcommand*\familydefault{\sfdefault}
+
+\pgfplotsset{compat=newest}
+\pgfplotsset{every axis/.append style={
+  thick,
+  solid,
+  grid=major,
+  axis equal image,
+  scale only axis=true,
+  %%=== x setting ===%%
+  xmin=XMIN, xmax=XMAX,
+  xtick={XTICK},
+  xlabel={$\Xi$},
+  %%=== y setting ===%%
+  ymin=0, ymax=1,
+  ytick={0,1},
+  ylabel={$N_a$},
+  %%=== legend setting ===%%
+  legend columns=7,
+  legend style={
+    at={(0.5,-0.8)},
+    anchor=north,
+    font=\normalsize,
+    legend cell align=left,
+    /tikz/every even column/.append style={column sep=0.5cm},
+    draw=none,
+  },
+}}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}
+ADDPLOTS
+\end{axis}
+\end{tikzpicture}
+\end{document}
+"""
+    tex_content = (tex_content
+        .replace('XMIN',     str(xmin))
+        .replace('XMAX',     str(xmax))
+        .replace('XTICK',    xtick_list)
+        .replace('ADDPLOTS', '\n'.join(addplot_lines))
+        .replace('%%', '%'))
+
+    with open(options.tex, 'w') as f:
+        f.write(tex_content)
+    print(f"Saved: {options.tex}")
 
     if options.show:
         import matplotlib.pyplot as plt
@@ -103,7 +223,7 @@ def main():
         ax.legend(fontsize=7, ncol=2, loc='upper right')
 
         plt.tight_layout()
-        filename = "1D_shape_functions_matplotlib.png"
+        filename = "1D_shape_functions_matplotlib.pdf"
         plt.savefig(filename, dpi=150)
         plt.show()
         print(f"\nSaved: {filename}")
