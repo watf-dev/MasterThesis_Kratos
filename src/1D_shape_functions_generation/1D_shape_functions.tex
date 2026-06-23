@@ -1,0 +1,84 @@
+\documentclass[multi=minipage,border=0]{standalone}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{pgfplots,tikz}
+\usepackage{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[scaled]{helvet}
+\usepackage{pgffor}
+\renewcommand*\familydefault{\sfdefault}
+
+\providecommand{\xmin}{0}
+\providecommand{\xmax}{7}
+\providecommand{\id}{0}
+
+\pgfplotsset{compat=newest}
+\pgfplotsset{every axis/.append style={
+  thick,
+  solid,
+  grid=major,
+  axis equal image,
+  scale only axis=true,
+  %=== x setting ===%
+  xmin=\xmin, xmax=\xmax,
+  xtick={\xmin,...,\xmax},
+  xlabel={$\Xi$},
+  %=== y setting ===%
+  ymin=0, ymax=1,
+  ytick={0,1},
+  ylabel={$N_a$},
+  %=== legend setting ===%
+  legend columns=7,
+  legend style={
+    at={(0.5,-0.8)},
+    anchor=north,
+    font=\normalsize,
+    legend cell align=left,
+    /tikz/every even column/.append style={column sep=0.5cm},
+    draw=none,
+  },
+  %=== cycle list ===%
+  cycle list name=color list,
+  cycle list={
+    {mark=none, color=red},
+    {mark=none, color=blue},
+    {mark=none, color=orange},
+    {mark=none, color=green},
+    {mark=none, color=pink},
+    {mark=none, color=yellow},
+    {mark=none, color=purple},
+  },
+}}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}
+  \addplot[color=blue] table [x index=0, y index=1] {ShapeFunctions/L0_N0.txt};
+  \addplot[color=blue] table [x index=0, y index=1] {ShapeFunctions/L0_N1.txt};
+  \addplot[color=blue] table [x index=0, y index=1] {ShapeFunctions/L0_N2.txt};
+  \addplot[color=blue] table [x index=0, y index=1] {ShapeFunctions/L0_N3.txt};
+  \addplot[color=cyan] table [x index=0, y index=1] {ShapeFunctions/L0_N4.txt};
+  \addplot[color=cyan] table [x index=0, y index=1] {ShapeFunctions/L0_N5.txt};
+  \addplot[color=blue] table [x index=0, y index=1] {ShapeFunctions/L0_N6.txt};
+  \addplot[color=blue] table [x index=0, y index=1] {ShapeFunctions/L0_N7.txt};
+
+  \addplot[color=red] table [x index=0, y index=1] {ShapeFunctions/L1_N0.txt};
+  \addplot[color=red] table [x index=0, y index=1] {ShapeFunctions/L1_N1.txt};
+  \addplot[color=red] table [x index=0, y index=1] {ShapeFunctions/L1_N2.txt};
+  \addplot[color=red] table [x index=0, y index=1] {ShapeFunctions/L1_N3.txt};
+
+  % \addlegendentry{$N_{0}$};
+  % \addlegendentry{$N_{1}$};
+  % \addlegendentry{$N_{2}$};
+  % \addlegendentry{$N_{3}$};
+  % \addlegendentry{$N_{4}$};
+  % \addlegendentry{$N_{5}$};
+  % \addlegendentry{$N_{6}$};
+  % \addlegendentry{$N_{7}$};
+  %
+  % \addlegendentry{$N_{0}$};
+  % \addlegendentry{$N_{1}$};
+  % \addlegendentry{$N_{2}$};
+  % \addlegendentry{$N_{3}$};
+\end{axis}
+\end{tikzpicture}
+\end{document}
