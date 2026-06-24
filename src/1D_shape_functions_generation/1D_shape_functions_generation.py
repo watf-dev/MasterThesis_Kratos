@@ -32,7 +32,7 @@ def main():
     model = KM.Model()
     mp = model.CreateModelPart("main")
     p = 2
-    knots = [0.0, 0.0, 1, 2, 3, 4, 5, 6, 7, 7]
+    knots = [0.0, 0.0, 1, 2, 3, 4, 5, 6, 6]
     knots_t = make_knots(knots)
     grev_t = greville(list(knots_t), p)
 
@@ -45,7 +45,9 @@ def main():
     geom = KM.THBCurveGeometry3D(points, p, knots_t)
 
     geom.AddLevel(2,mp)
-    geom.AddRefinementDomain(1, 3.0, 6.0) 
+    geom.AddRefinementDomain(1, 2.0, 4.0) 
+    # geom.AddRefinementDomain(2, 3.0, 4.0) 
+    # geom.AddRefinementDomain(2, 2.5, 3.5) 
     geom.EliminateInactiveFunctions(mp)
 
     n_eval = 1000
@@ -127,6 +129,7 @@ def main():
     xtick_list = ','.join(str(v) for v in range(xmin, xmax + 1))
 
     addplot_lines = []
+    seen_legend_keys = []  # ordered unique (lvl, truncated) for legend
     level_counts_tex = [0] * geom.NumberOfLevels()
     for i in range(n_active):
         lvl = cp_levels[i]
@@ -139,8 +142,45 @@ def main():
         pair = level_color_pairs[lvl % len(level_color_pairs)]
         color = pair[1] if truncated else pair[0]
         addplot_lines.append(
-            f'  \\addplot[color={color}] table [x index=0, y index=1] {{{fname}}};'
+            f'  \\addplot[color={color}, forget plot] table [x index=0, y index=1] {{{fname}}};'
         )
+        key = (lvl, truncated)
+        if key not in seen_legend_keys:
+            seen_legend_keys.append(key)
+
+    legend_lines = []
+    for (lvl, truncated) in seen_legend_keys:
+        pair = level_color_pairs[lvl % len(level_color_pairs)]
+        color = pair[1] if truncated else pair[0]
+        label = f"Level {lvl} truncated" if truncated else f"Level {lvl}"
+        legend_lines.append(f'  \\addlegendimage{{color={color}, thick}}')
+        legend_lines.append(f'  \\addlegendentry{{\\textrm{{{label}}}}}')
+
+    # One indicator line per refinement domain, stacked downward by level.
+    draw_lines = []
+    for dom in sorted(ref_domains, key=lambda d: d.Level):
+        lvl = dom.Level
+        color = level_color_pairs[lvl % len(level_color_pairs)][0]
+        yshift = -1.5 - (lvl - 1) * 2
+        draw_lines.append(
+            f'    \\draw[{color}, ultra thick]'
+            f' ([yshift={yshift}pt]axis cs:{dom.MinT},0)'
+            f' -- ([yshift={yshift}pt]axis cs:{dom.MaxT},0);'
+        )
+
+    if draw_lines:
+        # Shift x-tick labels down to clear the deepest indicator line.
+        max_abs_yshift = max(abs(-1.5 - (dom.Level - 1) * 2) for dom in ref_domains)
+        label_yshift = -(max_abs_yshift - 1)
+        axis_options = (
+            '[\n'
+            f'  xticklabel style={{yshift={label_yshift:.1f}pt}},\n'
+            '  after end axis/.code={\n'
+            + '\n'.join(draw_lines) +
+            '\n  }\n]'
+        )
+    else:
+        axis_options = ''
 
     tex_content = r"""\documentclass[multi=minipage,border=0]{standalone}
 \usepackage{amsmath,amssymb,mathtools}
@@ -180,17 +220,20 @@ def main():
 
 \begin{document}
 \begin{tikzpicture}
-\begin{axis}
+\begin{axis}AXIS_OPTIONS
 ADDPLOTS
+LEGEND
 \end{axis}
 \end{tikzpicture}
 \end{document}
 """
     tex_content = (tex_content
-        .replace('XMIN',     str(xmin))
-        .replace('XMAX',     str(xmax))
-        .replace('XTICK',    xtick_list)
-        .replace('ADDPLOTS', '\n'.join(addplot_lines))
+        .replace('XMIN',         str(xmin))
+        .replace('XMAX',         str(xmax))
+        .replace('XTICK',        xtick_list)
+        .replace('ADDPLOTS',     '\n'.join(addplot_lines))
+        .replace('LEGEND',       '\n'.join(legend_lines))
+        .replace('AXIS_OPTIONS', axis_options)
         .replace('%%', '%'))
 
     with open(options.tex, 'w') as f:
